@@ -1,0 +1,1967 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI沉浸式解构 CRH380A高速转向架 - 3D交互展示</title>
+    <style>
+        :root {
+            --bg: #0d1117;
+            --panel-bg: rgba(22, 27, 34, 0.95);
+            --text: #e6edf3;
+            --text-secondary: #8b949e;
+            --accent: #58a6ff;
+            --accent-glow: rgba(88, 166, 255, 0.3);
+            --danger: #f85149;
+            --warning: #d2991d;
+            --success: #3fb950;
+            --purple: #a371f7;
+            --orange: #f0883e;
+            --border: #30363d;
+            --radius: 12px;
+            --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', sans-serif;
+            background: var(--bg);
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            cursor: grab;
+            touch-action: pan-x pan-y pinch-zoom;
+        }
+        body:active {
+            cursor: grabbing;
+        }
+        body.pointer-cursor {
+            cursor: pointer;
+        }
+        body.grabbing {
+            cursor: grabbing;
+        }
+
+        #canvas-container {
+            position: fixed;
+            inset: 0;
+            z-index: 1;
+        }
+        canvas {
+            display: block;
+        }
+
+        /* 顶部标题栏 */
+        #header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 10;
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            pointer-events: none;
+        }
+        #header>* {
+            pointer-events: auto;
+        }
+        #title-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        #logo {
+            width: 42px;
+            height: 42px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #1a6dcc, #58a6ff);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            color: #fff;
+            font-weight: 900;
+            box-shadow: 0 4px 20px rgba(88, 166, 255, 0.35);
+            letter-spacing: -1px;
+        }
+        #title-text h1 {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: #fff;
+            letter-spacing: 0.5px;
+            line-height: 1.2;
+            text-shadow: 0 0 30px rgba(255, 255, 255, 0.15);
+        }
+        #title-text span {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+            letter-spacing: 0.3px;
+        }
+
+        /* 控制按钮组 */
+        #controls {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .ctrl-btn {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            background: var(--panel-bg);
+            border: 1px solid var(--border);
+            color: var(--text);
+            cursor: pointer;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: var(--transition);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            position: relative;
+        }
+        .ctrl-btn:hover {
+            background: rgba(40, 48, 58, 0.95);
+            border-color: #58a6ff;
+            box-shadow: 0 0 18px var(--accent-glow);
+        }
+        .ctrl-btn:active {
+            scale: 0.93;
+        }
+        .ctrl-btn.active {
+            background: rgba(88, 166, 255, 0.2);
+            border-color: #58a6ff;
+            box-shadow: 0 0 20px var(--accent-glow);
+            color: #58a6ff;
+        }
+        .ctrl-btn.tooltip::after {
+            content: attr(data-tip);
+            position: absolute;
+            bottom: 120%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1c2333;
+            color: #e6edf3;
+            padding: 5px 10px;
+            border-radius: 6px;
+            font-size: 0.7rem;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
+            border: 1px solid var(--border);
+        }
+        .ctrl-btn.tooltip:hover::after {
+            opacity: 1;
+        }
+
+        /* 图例面板 */
+        #legend {
+            position: fixed;
+            right: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 10;
+            background: var(--panel-bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 14px 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            max-height: 70vh;
+            overflow-y: auto;
+            transition: var(--transition);
+        }
+        #legend.collapsed {
+            right: -180px;
+        }
+        #legend-toggle {
+            position: absolute;
+            left: -30px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 26px;
+            height: 50px;
+            border-radius: 13px 0 0 13px;
+            background: var(--panel-bg);
+            border: 1px solid var(--border);
+            border-right: none;
+            color: var(--text);
+            cursor: pointer;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: var(--transition);
+        }
+        #legend-toggle:hover {
+            background: rgba(40, 48, 58, 0.95);
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 7px 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: var(--transition);
+            font-size: 0.78rem;
+            color: var(--text);
+            white-space: nowrap;
+            border: 1px solid transparent;
+            min-width: 130px;
+        }
+        .legend-item:hover {
+            background: rgba(255, 255, 255, 0.04);
+            border-color: var(--border);
+        }
+        .legend-item:active {
+            scale: 0.96;
+        }
+        .legend-item.highlighted {
+            background: rgba(88, 166, 255, 0.1);
+            border-color: #58a6ff;
+            box-shadow: 0 0 12px var(--accent-glow);
+        }
+        .legend-dot {
+            width: 13px;
+            height: 13px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            box-shadow: 0 0 8px currentColor;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+        }
+
+        /* 底部信息面板 */
+        #info-panel {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(0);
+            z-index: 10;
+            background: var(--panel-bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 18px 22px;
+            max-width: 560px;
+            width: 90%;
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            transition: var(--transition);
+            opacity: 1;
+            pointer-events: auto;
+        }
+        #info-panel.hidden {
+            opacity: 0;
+            transform: translateX(-50%) translateY(30px);
+            pointer-events: none;
+        }
+        #info-panel .part-icon {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            margin-right: 8px;
+            vertical-align: middle;
+            box-shadow: 0 0 10px currentColor;
+        }
+        #info-panel h3 {
+            font-size: 1.05rem;
+            color: #fff;
+            margin-bottom: 6px;
+            letter-spacing: 0.3px;
+        }
+        #info-panel p {
+            font-size: 0.82rem;
+            color: var(--text-secondary);
+            line-height: 1.55;
+        }
+        #info-panel .close-btn {
+            position: absolute;
+            top: 10px;
+            right: 14px;
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 18px;
+            padding: 4px 8px;
+            border-radius: 6px;
+            transition: var(--transition);
+        }
+        #info-panel .close-btn:hover {
+            color: #fff;
+            background: rgba(255, 255, 255, 0.06);
+        }
+
+        /* 提示标签 */
+        #tooltip-3d {
+            position: fixed;
+            pointer-events: none;
+            z-index: 15;
+            background: rgba(0, 0, 0, 0.85);
+            color: #fff;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            white-space: nowrap;
+            opacity: 0;
+            transition: opacity 0.15s;
+            border: 1px solid var(--border);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+        }
+        #tooltip-3d.visible {
+            opacity: 1;
+        }
+
+        /* 响应式 */
+        @media (max-width: 768px) {
+            #header {
+                padding: 10px 12px;
+            }
+            #title-text h1 {
+                font-size: 0.95rem;
+            }
+            #title-text span {
+                font-size: 0.65rem;
+            }
+            .ctrl-btn {
+                width: 32px;
+                height: 32px;
+                font-size: 14px;
+            }
+            #legend {
+                right: 4px;
+                padding: 10px 6px;
+                gap: 2px;
+                border-radius: 10px;
+            }
+            .legend-item {
+                font-size: 0.68rem;
+                padding: 5px 8px;
+                gap: 6px;
+                min-width: 100px;
+            }
+            .legend-dot {
+                width: 10px;
+                height: 10px;
+            }
+            #info-panel {
+                bottom: 10px;
+                padding: 14px 16px;
+                width: 94%;
+                max-width: none;
+                border-radius: 10px;
+            }
+            #info-panel h3 {
+                font-size: 0.9rem;
+            }
+            #info-panel p {
+                font-size: 0.72rem;
+            }
+            #legend-toggle {
+                left: -22px;
+                width: 20px;
+                height: 36px;
+                font-size: 10px;
+            }
+        }
+        @media (max-width: 480px) {
+            #header {
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+            #controls {
+                gap: 4px;
+            }
+            .ctrl-btn {
+                width: 28px;
+                height: 28px;
+                font-size: 12px;
+            }
+            #legend {
+                right: 2px;
+                padding: 6px 4px;
+                gap: 1px;
+            }
+            .legend-item {
+                font-size: 0.6rem;
+                padding: 3px 6px;
+                min-width: 80px;
+            }
+            .legend-dot {
+                width: 8px;
+                height: 8px;
+            }
+            #info-panel {
+                bottom: 6px;
+                padding: 10px 12px;
+                width: 96%;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="canvas-container"></div>
+
+    <!-- 顶部标题栏 -->
+    <div id="header">
+        <div id="title-group">
+            <div id="logo">🚄</div>
+            <div id="title-text">
+                <h1>AI沉浸式解构 CRH380A高速转向架</h1>
+                <span>动车组核心行走系统 · 3D交互展示</span>
+            </div>
+        </div>
+        <div id="controls">
+            <button class="ctrl-btn tooltip active" id="btn-auto-rotate" data-tip="自动旋转" title="自动旋转">⟳</button>
+            <button class="ctrl-btn tooltip" id="btn-reset" data-tip="重置视角" title="重置视角">⌂</button>
+            <button class="ctrl-btn tooltip" id="btn-top-view" data-tip="俯视图" title="俯视图">⊙</button>
+            <button class="ctrl-btn tooltip" id="btn-front-view" data-tip="正视图" title="正视图">⊟</button>
+            <button class="ctrl-btn tooltip" id="btn-side-view" data-tip="侧视图" title="侧视图">⊞</button>
+            <button class="ctrl-btn tooltip" id="btn-explode" data-tip="分解视图" title="分解视图">⊕</button>
+        </div>
+    </div>
+
+    <!-- 图例面板 -->
+    <div id="legend">
+        <button id="legend-toggle" title="折叠图例">◀</button>
+        <div class="legend-item" data-part="frame">
+            <span class="legend-dot" style="background:#5c7a92;color:#5c7a92;"></span>构架
+        </div>
+        <div class="legend-item" data-part="wheelset">
+            <span class="legend-dot" style="background:#7a7a7a;color:#7a7a7a;"></span>轮对
+        </div>
+        <div class="legend-item" data-part="axlebox">
+            <span class="legend-dot" style="background:#9e9e9e;color:#9e9e9e;"></span>轴箱
+        </div>
+        <div class="legend-item" data-part="primary-spring">
+            <span class="legend-dot" style="background:#4caf84;color:#4caf84;"></span>一系弹簧
+        </div>
+        <div class="legend-item" data-part="air-spring">
+            <span class="legend-dot" style="background:#4d9de0;color:#4d9de0;"></span>二系空气弹簧
+        </div>
+        <div class="legend-item" data-part="traction-motor">
+            <span class="legend-dot" style="background:#f0883e;color:#f0883e;"></span>牵引电机
+        </div>
+        <div class="legend-item" data-part="brake-disc">
+            <span class="legend-dot" style="background:#d9534f;color:#d9534f;"></span>制动盘
+        </div>
+        <div class="legend-item" data-part="damper">
+            <span class="legend-dot" style="background:#f0c040;color:#f0c040;"></span>减振器
+        </div>
+        <div class="legend-item" data-part="traction-link">
+            <span class="legend-dot" style="background:#a371f7;color:#a371f7;"></span>牵引拉杆
+        </div>
+    </div>
+
+    <!-- 3D悬浮提示 -->
+    <div id="tooltip-3d"></div>
+
+    <!-- 底部信息面板 -->
+    <div id="info-panel" class="hidden">
+        <button class="close-btn" id="close-info">✕</button>
+        <h3><span class="part-icon" id="info-icon"></span><span id="info-title"></span></h3>
+        <p id="info-desc"></p>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.152.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.152.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // ==================== DOM元素 ====================
+        const container = document.getElementById('canvas-container');
+        const tooltip3D = document.getElementById('tooltip-3d');
+        const infoPanel = document.getElementById('info-panel');
+        const infoTitle = document.getElementById('info-title');
+        const infoDesc = document.getElementById('info-desc');
+        const infoIcon = document.getElementById('info-icon');
+        const closeInfoBtn = document.getElementById('close-info');
+        const btnAutoRotate = document.getElementById('btn-auto-rotate');
+        const btnReset = document.getElementById('btn-reset');
+        const btnTopView = document.getElementById('btn-top-view');
+        const btnFrontView = document.getElementById('btn-front-view');
+        const btnSideView = document.getElementById('btn-side-view');
+        const btnExplode = document.getElementById('btn-explode');
+        const legendToggle = document.getElementById('legend-toggle');
+        const legendPanel = document.getElementById('legend');
+        const legendItems = document.querySelectorAll('.legend-item');
+
+        // ==================== 部件信息数据 ====================
+        const partInfoData = {
+            'frame': {
+                name: '构架 (Frame)',
+                color: '#5c7a92',
+                desc: '转向架的核心骨架，采用<strong>H型焊接构架</strong>，由两根侧梁和两根横梁组成。使用高强度耐候钢（SMA490BW）制造，具有优异的抗疲劳性能和焊接工艺性。构架承受车体传来的垂向、横向及纵向载荷，是转向架各部件安装的基础。侧梁内部设有加强筋板，横梁连接处经过优化设计以降低应力集中。'
+            },
+            'wheelset': {
+                name: '轮对 (Wheelset)',
+                color: '#7a7a7a',
+                desc: '由<strong>整体辗钢车轮</strong>和车轴冷压装配而成。车轮采用<strong>LMA型磨耗型踏面</strong>，直径860mm（新轮）/790mm（磨耗到限），材质为ER8高碳钢。车轴采用空心设计以减轻重量，材质为EA4T合金钢。轮对内侧距严格控制在1353±2mm，确保与轨道精确匹配。每条轮对可承受约17吨的轴重。'
+            },
+            'axlebox': {
+                name: '轴箱 (Axle Box)',
+                color: '#9e9e9e',
+                desc: '连接轮对与构架的关键部件，内部安装<strong>双列圆锥滚子轴承</strong>（TBU密封式轴承单元）。轴箱体采用球墨铸铁铸造，具有自导向功能。轴承采用脂润滑，设计寿命达240万公里以上。轴箱端部装有速度传感器和接地装置，为列车控制系统提供轮对转速信号。'
+            },
+            'primary-spring': {
+                name: '一系悬挂 (Primary Suspension)',
+                color: '#4caf84',
+                desc: '采用<strong>双圈螺旋钢弹簧</strong>（内外簧组合），安装在轴箱与构架之间。内簧和外簧的旋向相反，防止共振。弹簧材质为60Si2CrVA高强度弹簧钢，经过喷丸强化处理。一系悬挂主要缓冲垂向高频振动，配合垂向减振器共同工作，确保轮轨间的稳定接触。每组弹簧刚度约1.2kN/mm。'
+            },
+            'air-spring': {
+                name: '二系空气弹簧 (Secondary Air Spring)',
+                color: '#4d9de0',
+                desc: '位于构架侧梁与车体之间的<strong>气囊式空气弹簧</strong>，是二系悬挂的核心。采用橡胶-帘线复合结构，工作压力约500kPa。空气弹簧具有<strong>非线性刚度特性</strong>，可根据载荷自动调整高度（通过高度控制阀），确保车体始终保持恒定高度。配合附加气室可大幅降低垂向刚度，提供卓越的乘坐舒适性。'
+            },
+            'traction-motor': {
+                name: '牵引电机 (Traction Motor)',
+                color: '#f0883e',
+                desc: '采用<strong>三相异步牵引电机</strong>（型号YQ-365），额定功率365kW，最高转速约5900rpm。电机采用<strong>架悬式安装</strong>（通过弹性联轴器与齿轮箱连接），有效降低簧下质量。电机冷却方式为强迫风冷，绝缘等级为Class 200。每台转向架安装2台牵引电机，分别驱动两根轮对。'
+            },
+            'brake-disc': {
+                name: '制动盘 (Brake Disc)',
+                color: '#d9534f',
+                desc: 'CRH380A采用<strong>轮盘制动</strong>（动车）和轴盘制动（拖车）相结合的方式。制动盘材质为<strong>铸钢或锻钢</strong>，具有优良的耐热疲劳性能。盘体设计有通风筋以增强散热。制动夹钳采用浮动式结构，配备粉末冶金闸片。在350km/h紧急制动时，制动盘表面温度可瞬间升至600°C以上。'
+            },
+            'damper': {
+                name: '减振器 (Dampers)',
+                color: '#f0c040',
+                desc: '包括<strong>抗蛇行减振器</strong>和<strong>横向减振器</strong>。抗蛇行减振器安装在构架与车体之间（纵向布置），抑制转向架高速时的蛇行运动，是确保350km/h运行稳定性的关键部件。横向减振器控制车体横向振动。减振器采用液压阻尼结构，阻尼力可达15-25kN，响应频率范围0-20Hz。'
+            },
+            'traction-link': {
+                name: '牵引拉杆 (Traction Link)',
+                color: '#a371f7',
+                desc: '采用<strong>Z型牵引拉杆</strong>结构，连接构架横梁与车体牵引座。拉杆两端装有橡胶球关节，可适应转向架与车体之间的相对运动。牵引拉杆是传递<strong>牵引力和制动力</strong>的关键部件，在列车启动、加速和制动时承受巨大的纵向载荷。单根拉杆设计承载能力超过100kN。'
+            }
+        };
+
+        // ==================== Three.js 场景初始化 ====================
+        const scene = new THREE.Scene();
+
+        // 背景渐变
+        const bgColor = new THREE.Color('#0d1117');
+        scene.background = bgColor;
+        scene.fog = new THREE.Fog('#0d1117', 8, 35);
+
+        // 渲染器
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.2;
+        container.appendChild(renderer.domElement);
+
+        // 相机
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.3, 40);
+        camera.position.set(4.5, 3.2, 5.5);
+        camera.lookAt(0, 0.15, 0);
+
+        // OrbitControls
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.08;
+        controls.target.set(0, 0.15, 0);
+        controls.minDistance = 2.5;
+        controls.maxDistance = 12;
+        controls.maxPolarAngle = Math.PI * 0.72;
+        controls.autoRotate = true;
+        controls.autoRotateSpeed = 1.2;
+        controls.update();
+
+        // ==================== 光照 ====================
+        // 环境光
+        const ambientLight = new THREE.AmbientLight('#8ea4c0', 1.8);
+        scene.add(ambientLight);
+
+        // 半球光（模拟天空/地面）
+        const hemiLight = new THREE.HemisphereLight('#b8d4f0', '#3a2a1a', 0.9);
+        scene.add(hemiLight);
+
+        // 主方向光（带阴影）
+        const keyLight = new THREE.DirectionalLight('#ffffff', 5.5);
+        keyLight.position.set(8, 10, 5);
+        keyLight.castShadow = true;
+        keyLight.shadow.mapSize.width = 2048;
+        keyLight.shadow.mapSize.height = 2048;
+        keyLight.shadow.camera.near = 0.5;
+        keyLight.shadow.camera.far = 40;
+        keyLight.shadow.camera.left = -8;
+        keyLight.shadow.camera.right = 8;
+        keyLight.shadow.camera.top = 6;
+        keyLight.shadow.camera.bottom = -6;
+        keyLight.shadow.bias = -0.00015;
+        keyLight.shadow.normalBias = 0.02;
+        scene.add(keyLight);
+
+        // 补光
+        const fillLight = new THREE.DirectionalLight('#8ec8f2', 2.5);
+        fillLight.position.set(-4, 3, -3);
+        scene.add(fillLight);
+
+        // 底部补光（减少暗部）
+        const rimLight = new THREE.DirectionalLight('#ffe0c0', 2.0);
+        rimLight.position.set(0, -1, 2);
+        scene.add(rimLight);
+
+        // ==================== 地面与轨道 ====================
+        // 地面
+        const groundGeo = new THREE.PlaneGeometry(20, 20);
+        const groundMat = new THREE.MeshStandardMaterial({
+            color: '#1a1d24',
+            roughness: 0.85,
+            metalness: 0.15,
+            depthWrite: true,
+        });
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = -2.0;
+        ground.receiveShadow = true;
+        ground.name = 'ground';
+        scene.add(ground);
+
+        // 轨道（钢轨）
+        function createRail(railX) {
+            const railGroup = new THREE.Group();
+            railGroup.name = 'rail';
+
+            // 轨底
+            const railBaseGeo = new THREE.BoxGeometry(0.14, 0.04, 8);
+            const railBaseMat = new THREE.MeshStandardMaterial({ color: '#5a5a5a', roughness: 0.4, metalness: 0.85 });
+            const railBase = new THREE.Mesh(railBaseGeo, railBaseMat);
+            railBase.position.y = -1.12;
+            railBase.castShadow = true;
+            railBase.receiveShadow = true;
+            railGroup.add(railBase);
+
+            // 轨腰
+            const railWebGeo = new THREE.BoxGeometry(0.04, 0.08, 8);
+            const railWebMat = new THREE.MeshStandardMaterial({ color: '#6e6e6e', roughness: 0.35, metalness: 0.9 });
+            const railWeb = new THREE.Mesh(railWebGeo, railWebMat);
+            railWeb.position.y = -1.06;
+            railWeb.castShadow = true;
+            railGroup.add(railWeb);
+
+            // 轨头
+            const railHeadGeo = new THREE.CylinderGeometry(0.03, 0.03, 8, 16);
+            const railHeadMat = new THREE.MeshStandardMaterial({ color: '#c8c8c8', roughness: 0.25, metalness: 0.95 });
+            const railHead = new THREE.Mesh(railHeadGeo, railHeadMat);
+            railHead.rotation.x = Math.PI / 2;
+            railHead.position.y = -1.005;
+            railHead.castShadow = true;
+            railHead.receiveShadow = true;
+            railGroup.add(railHead);
+
+            railGroup.position.x = railX;
+            railGroup.position.z = 0;
+            return railGroup;
+        }
+        const railLeft = createRail(-0.7175);
+        const railRight = createRail(0.7175);
+        scene.add(railLeft);
+        scene.add(railRight);
+
+        // 轨枕
+        for (let i = -7; i <= 7; i++) {
+            const sleeperGeo = new THREE.BoxGeometry(2.2, 0.06, 0.16);
+            const sleeperMat = new THREE.MeshStandardMaterial({ color: '#3d3226', roughness: 0.75, metalness: 0.05 });
+            const sleeper = new THREE.Mesh(sleeperGeo, sleeperMat);
+            sleeper.position.set(0, -1.16, i * 0.55);
+            sleeper.receiveShadow = true;
+            sleeper.castShadow = true;
+            sleeper.name = 'sleeper';
+            scene.add(sleeper);
+        }
+
+        // ==================== 转向架模型构建 ====================
+        const bogieGroup = new THREE.Group();
+        bogieGroup.name = 'bogie';
+        scene.add(bogieGroup);
+
+        // 所有可交互部件的集合
+        const interactiveParts = [];
+        // 部件组映射（用于分解视图）
+        const partGroups = {};
+
+        // 辅助函数：创建可交互的网格
+        function createInteractiveMesh(geometry, material, name, partType, group = bogieGroup) {
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            mesh.name = name;
+            mesh.userData = {
+                partType: partType,
+                isInteractive: true,
+                originalY: 0,
+                explodeOffset: 0,
+            };
+            group.add(mesh);
+            interactiveParts.push(mesh);
+
+            // 按类型分组
+            if (!partGroups[partType]) {
+                partGroups[partType] = [];
+            }
+            partGroups[partType].push(mesh);
+
+            return mesh;
+        }
+
+        // ==================== 构架 (Frame) ====================
+        const frameGroup = new THREE.Group();
+        frameGroup.name = 'frame-group';
+        bogieGroup.add(frameGroup);
+
+        const frameMaterial = new THREE.MeshStandardMaterial({
+            color: '#5c7a92',
+            roughness: 0.35,
+            metalness: 0.75,
+        });
+        const frameMaterialHighlight = new THREE.MeshStandardMaterial({
+            color: '#7eb8d4',
+            roughness: 0.3,
+            metalness: 0.7,
+            emissive: '#1a3a4a',
+            emissiveIntensity: 0.4,
+        });
+
+        // 侧梁（2根，沿Z轴）
+        function createSideBeam(xPos) {
+            const beamGroup = new THREE.Group();
+            beamGroup.position.set(xPos, 0, 0);
+            beamGroup.name = `side-beam-${xPos > 0 ? 'right' : 'left'}`;
+
+            // 主梁体
+            const mainGeo = new THREE.BoxGeometry(0.22, 0.28, 3.0);
+            const main = new THREE.Mesh(mainGeo, frameMaterial.clone());
+            main.position.y = 0;
+            main.castShadow = true;
+            main.receiveShadow = true;
+            main.name = 'side-beam-main';
+            main.userData = { partType: 'frame', isInteractive: true, originalY: 0, explodeOffset: 0 };
+            beamGroup.add(main);
+            interactiveParts.push(main);
+            if (!partGroups['frame']) partGroups['frame'] = [];
+            partGroups['frame'].push(main);
+
+            // 端部加厚
+            for (let zSign of [-1, 1]) {
+                const endGeo = new THREE.BoxGeometry(0.26, 0.30, 0.25);
+                const end = new THREE.Mesh(endGeo, frameMaterial.clone());
+                end.position.set(0, 0, zSign * 1.45);
+                end.castShadow = true;
+                end.receiveShadow = true;
+                end.name = 'side-beam-end';
+                end.userData = { partType: 'frame', isInteractive: true, originalY: 0, explodeOffset: 0 };
+                beamGroup.add(end);
+                interactiveParts.push(end);
+                partGroups['frame'].push(end);
+            }
+
+            // 二系弹簧安装座
+            for (let zSign of [-1, 1]) {
+                const mountGeo = new THREE.CylinderGeometry(0.12, 0.14, 0.08, 16);
+                const mount = new THREE.Mesh(mountGeo, frameMaterial.clone());
+                mount.position.set(0, 0.18, zSign * 0.8);
+                mount.castShadow = true;
+                mount.receiveShadow = true;
+                mount.name = 'spring-mount';
+                mount.userData = { partType: 'frame', isInteractive: true, originalY: 0, explodeOffset: 0 };
+                beamGroup.add(mount);
+                interactiveParts.push(mount);
+                partGroups['frame'].push(mount);
+            }
+
+            return beamGroup;
+        }
+        const sideBeamLeft = createSideBeam(-0.95);
+        const sideBeamRight = createSideBeam(0.95);
+        frameGroup.add(sideBeamLeft);
+        frameGroup.add(sideBeamRight);
+
+        // 横梁（2根，沿X轴）
+        function createCrossBeam(zPos) {
+            const beamGroup = new THREE.Group();
+            beamGroup.position.set(0, -0.02, zPos);
+            beamGroup.name = `cross-beam-${zPos > 0 ? 'rear' : 'front'}`;
+
+            const mainGeo = new THREE.BoxGeometry(1.7, 0.2, 0.18);
+            const main = new THREE.Mesh(mainGeo, frameMaterial.clone());
+            main.position.y = 0;
+            main.castShadow = true;
+            main.receiveShadow = true;
+            main.name = 'cross-beam-main';
+            main.userData = { partType: 'frame', isInteractive: true, originalY: 0, explodeOffset: 0 };
+            beamGroup.add(main);
+            interactiveParts.push(main);
+            partGroups['frame'].push(main);
+
+            // 电机安装座
+            const motorMountGeo = new THREE.BoxGeometry(0.5, 0.1, 0.22);
+            const motorMount = new THREE.Mesh(motorMountGeo, frameMaterial.clone());
+            motorMount.position.set(0, -0.15, 0);
+            motorMount.castShadow = true;
+            motorMount.receiveShadow = true;
+            motorMount.name = 'motor-mount';
+            motorMount.userData = { partType: 'frame', isInteractive: true, originalY: 0, explodeOffset: 0 };
+            beamGroup.add(motorMount);
+            interactiveParts.push(motorMount);
+            partGroups['frame'].push(motorMount);
+
+            return beamGroup;
+        }
+        const crossBeamFront = createCrossBeam(-1.1);
+        const crossBeamRear = createCrossBeam(1.1);
+        frameGroup.add(crossBeamFront);
+        frameGroup.add(crossBeamRear);
+
+        // ==================== 轮对 (Wheelset) ====================
+        const wheelMaterial = new THREE.MeshStandardMaterial({
+            color: '#7a7a7a',
+            roughness: 0.3,
+            metalness: 0.9,
+        });
+        const axleMaterial = new THREE.MeshStandardMaterial({
+            color: '#9a9a9a',
+            roughness: 0.25,
+            metalness: 0.92,
+        });
+
+        function createWheelset(zPos) {
+            const wsGroup = new THREE.Group();
+            wsGroup.position.set(0, -0.55, zPos);
+            wsGroup.name = `wheelset-${zPos > 0 ? 'rear' : 'front'}`;
+            wsGroup.userData = { partType: 'wheelset' };
+
+            // 车轴
+            const axleGeo = new THREE.CylinderGeometry(0.055, 0.055, 1.75, 24);
+            const axle = new THREE.Mesh(axleGeo, axleMaterial.clone());
+            axle.rotation.x = Math.PI / 2;
+            axle.position.set(0, 0, 0);
+            axle.castShadow = true;
+            axle.receiveShadow = true;
+            axle.name = 'axle';
+            axle.userData = { partType: 'wheelset', isInteractive: true, originalY: -0.55, explodeOffset: 0 };
+            wsGroup.add(axle);
+            interactiveParts.push(axle);
+            if (!partGroups['wheelset']) partGroups['wheelset'] = [];
+            partGroups['wheelset'].push(axle);
+
+            // 车轮
+            for (let xSign of [-1, 1]) {
+                const wheelGroup = new THREE.Group();
+                wheelGroup.position.set(xSign * 0.7175, 0, 0);
+
+                // 轮辋
+                const rimGeo = new THREE.TorusGeometry(0.35, 0.06, 16, 48);
+                const rim = new THREE.Mesh(rimGeo, wheelMaterial.clone());
+                rim.rotation.y = Math.PI / 2;
+                rim.castShadow = true;
+                rim.receiveShadow = true;
+                rim.name = 'wheel-rim';
+                rim.userData = { partType: 'wheelset', isInteractive: true, originalY: -0.55, explodeOffset: 0 };
+                wheelGroup.add(rim);
+                interactiveParts.push(rim);
+                partGroups['wheelset'].push(rim);
+
+                // 轮辐
+                const webGeo = new THREE.CylinderGeometry(0.28, 0.30, 0.06, 32);
+                const web = new THREE.Mesh(webGeo, wheelMaterial.clone());
+                web.rotation.x = Math.PI / 2;
+                web.castShadow = true;
+                web.receiveShadow = true;
+                web.name = 'wheel-web';
+                web.userData = { partType: 'wheelset', isInteractive: true, originalY: -0.55, explodeOffset: 0 };
+                wheelGroup.add(web);
+                interactiveParts.push(web);
+                partGroups['wheelset'].push(web);
+
+                // 轮毂
+                const hubGeo = new THREE.CylinderGeometry(0.09, 0.10, 0.1, 20);
+                const hub = new THREE.Mesh(hubGeo, wheelMaterial.clone());
+                hub.rotation.x = Math.PI / 2;
+                hub.castShadow = true;
+                hub.receiveShadow = true;
+                hub.name = 'wheel-hub';
+                hub.userData = { partType: 'wheelset', isInteractive: true, originalY: -0.55, explodeOffset: 0 };
+                wheelGroup.add(hub);
+                interactiveParts.push(hub);
+                partGroups['wheelset'].push(hub);
+
+                wsGroup.add(wheelGroup);
+            }
+
+            return wsGroup;
+        }
+        const wheelsetFront = createWheelset(-1.25);
+        const wheelsetRear = createWheelset(1.25);
+        bogieGroup.add(wheelsetFront);
+        bogieGroup.add(wheelsetRear);
+
+        // ==================== 轴箱 (Axle Box) ====================
+        const axleboxMaterial = new THREE.MeshStandardMaterial({
+            color: '#9e9e9e',
+            roughness: 0.4,
+            metalness: 0.8,
+        });
+
+        function createAxleBox(xPos, zPos) {
+            const abGroup = new THREE.Group();
+            abGroup.position.set(xPos, -0.55, zPos);
+            abGroup.name = `axlebox-${xPos > 0 ? 'R' : 'L'}-${zPos > 0 ? 'R' : 'F'}`;
+
+            // 主体
+            const bodyGeo = new THREE.BoxGeometry(0.2, 0.16, 0.18);
+            const body = new THREE.Mesh(bodyGeo, axleboxMaterial.clone());
+            body.position.y = 0;
+            body.castShadow = true;
+            body.receiveShadow = true;
+            body.name = 'axlebox-body';
+            body.userData = { partType: 'axlebox', isInteractive: true, originalY: -0.55, explodeOffset: 0 };
+            abGroup.add(body);
+            interactiveParts.push(body);
+            if (!partGroups['axlebox']) partGroups['axlebox'] = [];
+            partGroups['axlebox'].push(body);
+
+            // 轴承盖
+            const capGeo = new THREE.CylinderGeometry(0.07, 0.08, 0.06, 16);
+            const cap = new THREE.Mesh(capGeo, axleboxMaterial.clone());
+            cap.rotation.x = Math.PI / 2;
+            cap.position.set(xPos > 0 ? 0.12 : -0.12, 0, 0);
+            cap.castShadow = true;
+            cap.receiveShadow = true;
+            cap.name = 'axlebox-cap';
+            cap.userData = { partType: 'axlebox', isInteractive: true, originalY: -0.55, explodeOffset: 0 };
+            abGroup.add(cap);
+            interactiveParts.push(cap);
+            partGroups['axlebox'].push(cap);
+
+            bogieGroup.add(abGroup);
+            return abGroup;
+        }
+        const axleBoxes = [];
+        for (let zSign of [-1, 1]) {
+            for (let xSign of [-1, 1]) {
+                axleBoxes.push(createAxleBox(xSign * 0.85, zSign * 1.25));
+            }
+        }
+
+        // ==================== 一系弹簧 (Primary Suspension) ====================
+        const primarySpringMaterial = new THREE.MeshStandardMaterial({
+            color: '#4caf84',
+            roughness: 0.45,
+            metalness: 0.55,
+        });
+
+        // 螺旋曲线类
+        class HelixCurve extends THREE.Curve {
+            constructor(radius, height, turns) {
+                super();
+                this.radius = radius;
+                this.height = height;
+                this.turns = turns;
+            }
+            getPoint(t) {
+                const angle = 2 * Math.PI * this.turns * t;
+                const x = this.radius * Math.cos(angle);
+                const y = this.height * t - this.height / 2;
+                const z = this.radius * Math.sin(angle);
+                return new THREE.Vector3(x, y, z);
+            }
+        }
+
+        function createPrimarySpring(xPos, zPos) {
+            const springGroup = new THREE.Group();
+            springGroup.position.set(xPos, -0.38, zPos);
+            springGroup.name = `primary-spring-${xPos > 0 ? 'R' : 'L'}-${zPos > 0 ? 'R' : 'F'}`;
+
+            // 外弹簧
+            const outerCurve = new HelixCurve(0.07, 0.3, 5);
+            const outerGeo = new THREE.TubeGeometry(outerCurve, 64, 0.015, 10, false);
+            const outerSpring = new THREE.Mesh(outerGeo, primarySpringMaterial.clone());
+            outerSpring.castShadow = true;
+            outerSpring.receiveShadow = true;
+            outerSpring.name = 'primary-spring-outer';
+            outerSpring.userData = { partType: 'primary-spring', isInteractive: true, originalY: -0.38, explodeOffset: 0 };
+            springGroup.add(outerSpring);
+            interactiveParts.push(outerSpring);
+            if (!partGroups['primary-spring']) partGroups['primary-spring'] = [];
+            partGroups['primary-spring'].push(outerSpring);
+
+            // 内弹簧
+            const innerCurve = new HelixCurve(0.04, 0.3, 6);
+            const innerGeo = new THREE.TubeGeometry(innerCurve, 64, 0.01, 8, false);
+            const innerSpring = new THREE.Mesh(innerGeo, primarySpringMaterial.clone());
+            innerSpring.castShadow = true;
+            innerSpring.receiveShadow = true;
+            innerSpring.name = 'primary-spring-inner';
+            innerSpring.userData = { partType: 'primary-spring', isInteractive: true, originalY: -0.38, explodeOffset: 0 };
+            springGroup.add(innerSpring);
+            interactiveParts.push(innerSpring);
+            partGroups['primary-spring'].push(innerSpring);
+
+            // 弹簧座
+            const seatGeo = new THREE.CylinderGeometry(0.09, 0.09, 0.03, 16);
+            const seatTop = new THREE.Mesh(seatGeo, new THREE.MeshStandardMaterial({
+                color: '#888888',
+                roughness: 0.3,
+                metalness: 0.8
+            }));
+            seatTop.position.y = 0.16;
+            seatTop.castShadow = true;
+            seatTop.receiveShadow = true;
+            seatTop.name = 'spring-seat-top';
+            seatTop.userData = { partType: 'primary-spring', isInteractive: true, originalY: -0.38 + 0.16,
+                explodeOffset: 0 };
+            springGroup.add(seatTop);
+            interactiveParts.push(seatTop);
+            partGroups['primary-spring'].push(seatTop);
+
+            const seatBottom = new THREE.Mesh(seatGeo.clone(), new THREE.MeshStandardMaterial({
+                color: '#888888',
+                roughness: 0.3,
+                metalness: 0.8
+            }));
+            seatBottom.position.y = -0.16;
+            seatBottom.castShadow = true;
+            seatBottom.receiveShadow = true;
+            seatBottom.name = 'spring-seat-bottom';
+            seatBottom.userData = { partType: 'primary-spring', isInteractive: true, originalY: -0.38 - 0.16,
+                explodeOffset: 0 };
+            springGroup.add(seatBottom);
+            interactiveParts.push(seatBottom);
+            partGroups['primary-spring'].push(seatBottom);
+
+            bogieGroup.add(springGroup);
+            return springGroup;
+        }
+        for (let zSign of [-1, 1]) {
+            for (let xSign of [-1, 1]) {
+                createPrimarySpring(xSign * 0.85, zSign * 1.25);
+            }
+        }
+
+        // ==================== 二系空气弹簧 (Secondary Air Spring) ====================
+        const airSpringMaterial = new THREE.MeshStandardMaterial({
+            color: '#4d9de0',
+            roughness: 0.5,
+            metalness: 0.3,
+        });
+
+        function createAirSpring(xPos, zPos) {
+            const asGroup = new THREE.Group();
+            asGroup.position.set(xPos, 0.42, zPos);
+            asGroup.name = `air-spring-${xPos > 0 ? 'R' : 'L'}-${zPos > 0 ? 'R' : 'F'}`;
+
+            // 气囊主体
+            const bagGeo = new THREE.CylinderGeometry(0.14, 0.16, 0.2, 24);
+            const bag = new THREE.Mesh(bagGeo, airSpringMaterial.clone());
+            bag.position.y = 0;
+            bag.castShadow = true;
+            bag.receiveShadow = true;
+            bag.name = 'air-spring-bag';
+            bag.userData = { partType: 'air-spring', isInteractive: true, originalY: 0.42, explodeOffset: 0 };
+            asGroup.add(bag);
+            interactiveParts.push(bag);
+            if (!partGroups['air-spring']) partGroups['air-spring'] = [];
+            partGroups['air-spring'].push(bag);
+
+            // 上盖板
+            const topPlateGeo = new THREE.CylinderGeometry(0.16, 0.16, 0.03, 24);
+            const topPlate = new THREE.Mesh(topPlateGeo, new THREE.MeshStandardMaterial({
+                color: '#cccccc',
+                roughness: 0.25,
+                metalness: 0.85
+            }));
+            topPlate.position.y = 0.12;
+            topPlate.castShadow = true;
+            topPlate.receiveShadow = true;
+            topPlate.name = 'air-spring-top';
+            topPlate.userData = { partType: 'air-spring', isInteractive: true, originalY: 0.42 + 0.12,
+            explodeOffset: 0 };
+            asGroup.add(topPlate);
+            interactiveParts.push(topPlate);
+            partGroups['air-spring'].push(topPlate);
+
+            // 下底板
+            const bottomPlateGeo = new THREE.CylinderGeometry(0.16, 0.16, 0.03, 24);
+            const bottomPlate = new THREE.Mesh(bottomPlateGeo, new THREE.MeshStandardMaterial({
+                color: '#cccccc',
+                roughness: 0.25,
+                metalness: 0.85
+            }));
+            bottomPlate.position.y = -0.12;
+            bottomPlate.castShadow = true;
+            bottomPlate.receiveShadow = true;
+            bottomPlate.name = 'air-spring-bottom';
+            bottomPlate.userData = { partType: 'air-spring', isInteractive: true, originalY: 0.42 - 0.12,
+                explodeOffset: 0 };
+            asGroup.add(bottomPlate);
+            interactiveParts.push(bottomPlate);
+            partGroups['air-spring'].push(bottomPlate);
+
+            bogieGroup.add(asGroup);
+            return asGroup;
+        }
+        for (let zSign of [-1, 1]) {
+            for (let xSign of [-1, 1]) {
+                createAirSpring(xSign * 0.95, zSign * 0.8);
+            }
+        }
+
+        // ==================== 牵引电机 (Traction Motor) ====================
+        const motorMaterial = new THREE.MeshStandardMaterial({
+            color: '#f0883e',
+            roughness: 0.4,
+            metalness: 0.65,
+        });
+
+        function createTractionMotor(zPos) {
+            const motorGroup = new THREE.Group();
+            motorGroup.position.set(0, -0.15, zPos);
+            motorGroup.name = `traction-motor-${zPos > 0 ? 'rear' : 'front'}`;
+
+            // 电机主体
+            const bodyGeo = new THREE.CylinderGeometry(0.16, 0.16, 0.65, 24);
+            const body = new THREE.Mesh(bodyGeo, motorMaterial.clone());
+            body.rotation.x = Math.PI / 2;
+            body.position.y = 0;
+            body.castShadow = true;
+            body.receiveShadow = true;
+            body.name = 'motor-body';
+            body.userData = { partType: 'traction-motor', isInteractive: true, originalY: -0.15, explodeOffset: 0 };
+            motorGroup.add(body);
+            interactiveParts.push(body);
+            if (!partGroups['traction-motor']) partGroups['traction-motor'] = [];
+            partGroups['traction-motor'].push(body);
+
+            // 散热筋（环形）
+            for (let i = -2; i <= 2; i++) {
+                const finGeo = new THREE.TorusGeometry(0.175, 0.012, 8, 24);
+                const fin = new THREE.Mesh(finGeo, motorMaterial.clone());
+                fin.rotation.y = Math.PI / 2;
+                fin.position.set(i * 0.1, 0, 0);
+                fin.castShadow = true;
+                fin.name = 'motor-fin';
+                fin.userData = { partType: 'traction-motor', isInteractive: true, originalY: -0.15, explodeOffset: 0 };
+                motorGroup.add(fin);
+                interactiveParts.push(fin);
+                partGroups['traction-motor'].push(fin);
+            }
+
+            // 端盖
+            for (let xSign of [-1, 1]) {
+                const capGeo = new THREE.CylinderGeometry(0.14, 0.16, 0.06, 20);
+                const cap = new THREE.Mesh(capGeo, new THREE.MeshStandardMaterial({
+                    color: '#d07030',
+                    roughness: 0.35,
+                    metalness: 0.7
+                }));
+                cap.rotation.x = Math.PI / 2;
+                cap.position.set(xSign * 0.34, 0, 0);
+                cap.castShadow = true;
+                cap.receiveShadow = true;
+                cap.name = 'motor-cap';
+                cap.userData = { partType: 'traction-motor', isInteractive: true, originalY: -0.15,
+                explodeOffset: 0 };
+                motorGroup.add(cap);
+                interactiveParts.push(cap);
+                partGroups['traction-motor'].push(cap);
+            }
+
+            bogieGroup.add(motorGroup);
+            return motorGroup;
+        }
+        const motorFront = createTractionMotor(-1.1);
+        const motorRear = createTractionMotor(1.1);
+
+        // ==================== 制动盘 (Brake Disc) ====================
+        const brakeDiscMaterial = new THREE.MeshStandardMaterial({
+            color: '#d9534f',
+            roughness: 0.5,
+            metalness: 0.7,
+        });
+
+        function createBrakeDisc(xPos, zPos) {
+            const bdGroup = new THREE.Group();
+            bdGroup.position.set(xPos, -0.55, zPos);
+            bdGroup.name = `brake-disc-${xPos > 0 ? 'R' : 'L'}-${zPos > 0 ? 'R' : 'F'}`;
+
+            // 制动盘主体
+            const discGeo = new THREE.CylinderGeometry(0.26, 0.26, 0.04, 32);
+            const disc = new THREE.Mesh(discGeo, brakeDiscMaterial.clone());
+            disc.rotation.x = Math.PI / 2;
+            disc.position.set(xPos > 0 ? 0.1 : -0.1, 0, 0);
+            disc.castShadow = true;
+            disc.receiveShadow = true;
+            disc.name = 'brake-disc-main';
+            disc.userData = { partType: 'brake-disc', isInteractive: true, originalY: -0.55, explodeOffset: 0 };
+            bdGroup.add(disc);
+            interactiveParts.push(disc);
+            if (!partGroups['brake-disc']) partGroups['brake-disc'] = [];
+            partGroups['brake-disc'].push(disc);
+
+            // 通风槽（环形表示）
+            const ventGeo = new THREE.TorusGeometry(0.22, 0.015, 8, 32);
+            const vent = new THREE.Mesh(ventGeo, brakeDiscMaterial.clone());
+            vent.rotation.y = Math.PI / 2;
+            vent.position.set(xPos > 0 ? 0.1 : -0.1, 0, 0);
+            vent.castShadow = true;
+            vent.name = 'brake-disc-vent';
+            vent.userData = { partType: 'brake-disc', isInteractive: true, originalY: -0.55, explodeOffset: 0 };
+            bdGroup.add(vent);
+            interactiveParts.push(vent);
+            partGroups['brake-disc'].push(vent);
+
+            bogieGroup.add(bdGroup);
+            return bdGroup;
+        }
+        for (let zSign of [-1, 1]) {
+            for (let xSign of [-1, 1]) {
+                createBrakeDisc(xSign * 0.65, zSign * 1.25);
+            }
+        }
+
+        // ==================== 减振器 (Dampers) ====================
+        const damperMaterial = new THREE.MeshStandardMaterial({
+            color: '#f0c040',
+            roughness: 0.35,
+            metalness: 0.6,
+        });
+
+        // 抗蛇行减振器（纵向布置）
+        function createAntiHuntingDamper(xPos, zPos) {
+            const damperGroup = new THREE.Group();
+            damperGroup.position.set(xPos, -0.05, zPos);
+            damperGroup.name = `anti-hunting-damper-${xPos > 0 ? 'R' : 'L'}`;
+
+            // 缸体
+            const cylinderGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.7, 12);
+            const cylinder = new THREE.Mesh(cylinderGeo, damperMaterial.clone());
+            cylinder.rotation.x = Math.PI / 2;
+            cylinder.position.z = 0;
+            cylinder.castShadow = true;
+            cylinder.receiveShadow = true;
+            cylinder.name = 'damper-cylinder';
+            cylinder.userData = { partType: 'damper', isInteractive: true, originalY: -0.05, explodeOffset: 0 };
+            damperGroup.add(cylinder);
+            interactiveParts.push(cylinder);
+            if (!partGroups['damper']) partGroups['damper'] = [];
+            partGroups['damper'].push(cylinder);
+
+            // 活塞杆
+            const rodGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.4, 8);
+            const rod = new THREE.Mesh(rodGeo, new THREE.MeshStandardMaterial({
+                color: '#d4d4d4',
+                roughness: 0.2,
+                metalness: 0.9
+            }));
+            rod.rotation.x = Math.PI / 2;
+            rod.position.z = 0.4;
+            rod.castShadow = true;
+            rod.receiveShadow = true;
+            rod.name = 'damper-rod';
+            rod.userData = { partType: 'damper', isInteractive: true, originalY: -0.05, explodeOffset: 0 };
+            damperGroup.add(rod);
+            interactiveParts.push(rod);
+            partGroups['damper'].push(rod);
+
+            // 橡胶衬套
+            for (let zOff of [-0.35, 0.55]) {
+                const bushGeo = new THREE.SphereGeometry(0.045, 12, 12);
+                const bush = new THREE.Mesh(bushGeo, new THREE.MeshStandardMaterial({
+                    color: '#333333',
+                    roughness: 0.7,
+                    metalness: 0.1
+                }));
+                bush.position.z = zOff;
+                bush.castShadow = true;
+                bush.name = 'damper-bush';
+                bush.userData = { partType: 'damper', isInteractive: true, originalY: -0.05, explodeOffset: 0 };
+                damperGroup.add(bush);
+                interactiveParts.push(bush);
+                partGroups['damper'].push(bush);
+            }
+
+            bogieGroup.add(damperGroup);
+            return damperGroup;
+        }
+        createAntiHuntingDamper(-1.05, 0);
+        createAntiHuntingDamper(1.05, 0);
+
+        // 横向减振器
+        function createLateralDamper(yPos) {
+            const damperGroup = new THREE.Group();
+            damperGroup.position.set(0, yPos, 0);
+            damperGroup.name = 'lateral-damper';
+
+            const cylinderGeo = new THREE.CylinderGeometry(0.035, 0.035, 0.55, 10);
+            const cylinder = new THREE.Mesh(cylinderGeo, damperMaterial.clone());
+            cylinder.rotation.z = Math.PI / 2;
+            cylinder.castShadow = true;
+            cylinder.receiveShadow = true;
+            cylinder.name = 'lateral-damper-cyl';
+            cylinder.userData = { partType: 'damper', isInteractive: true, originalY: yPos, explodeOffset: 0 };
+            damperGroup.add(cylinder);
+            interactiveParts.push(cylinder);
+            partGroups['damper'].push(cylinder);
+
+            bogieGroup.add(damperGroup);
+            return damperGroup;
+        }
+        createLateralDamper(-0.1);
+
+        // ==================== 牵引拉杆 (Traction Link) ====================
+        const tractionLinkMaterial = new THREE.MeshStandardMaterial({
+            color: '#a371f7',
+            roughness: 0.4,
+            metalness: 0.55,
+        });
+
+        function createTractionLink() {
+            const tlGroup = new THREE.Group();
+            tlGroup.position.set(0, -0.3, 0);
+            tlGroup.name = 'traction-link-group';
+
+            // Z型拉杆 - 简化表示
+            const linkGeo = new THREE.BoxGeometry(0.06, 0.06, 0.9);
+            const link = new THREE.Mesh(linkGeo, tractionLinkMaterial.clone());
+            link.position.set(0, 0, 0);
+            link.castShadow = true;
+            link.receiveShadow = true;
+            link.name = 'traction-link';
+            link.userData = { partType: 'traction-link', isInteractive: true, originalY: -0.3, explodeOffset: 0 };
+            tlGroup.add(link);
+            interactiveParts.push(link);
+            if (!partGroups['traction-link']) partGroups['traction-link'] = [];
+            partGroups['traction-link'].push(link);
+
+            // 球关节
+            for (let zOff of [-0.42, 0.42]) {
+                const jointGeo = new THREE.SphereGeometry(0.06, 16, 16);
+                const joint = new THREE.Mesh(jointGeo, new THREE.MeshStandardMaterial({
+                    color: '#555555',
+                    roughness: 0.5,
+                    metalness: 0.7
+                }));
+                joint.position.z = zOff;
+                joint.castShadow = true;
+                joint.receiveShadow = true;
+                joint.name = 'traction-link-joint';
+                joint.userData = { partType: 'traction-link', isInteractive: true, originalY: -0.3, explodeOffset: 0 };
+                tlGroup.add(joint);
+                interactiveParts.push(joint);
+                partGroups['traction-link'].push(joint);
+            }
+
+            bogieGroup.add(tlGroup);
+            return tlGroup;
+        }
+        createTractionLink();
+
+        // ==================== 粒子装饰 ====================
+        const particlesGeo = new THREE.BufferGeometry();
+        const particlesCount = 150;
+        const positionsArray = new Float32Array(particlesCount * 3);
+        for (let i = 0; i < particlesCount; i++) {
+            positionsArray[i * 3] = (Math.random() - 0.5) * 6;
+            positionsArray[i * 3 + 1] = (Math.random() - 0.5) * 4 + 0.3;
+            positionsArray[i * 3 + 2] = (Math.random() - 0.5) * 6;
+        }
+        particlesGeo.setAttribute('position', new THREE.BufferAttribute(positionsArray, 3));
+        const particlesMat = new THREE.PointsMaterial({
+            size: 0.015,
+            color: '#8ab8e0',
+            transparent: true,
+            opacity: 0.5,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+        });
+        const particles = new THREE.Points(particlesGeo, particlesMat);
+        particles.name = 'particles';
+        scene.add(particles);
+
+        // ==================== 交互逻辑 ====================
+        const raycaster = new THREE.Raycaster();
+        raycaster.params.Points.threshold = 0.1;
+        raycaster.params.Line = { threshold: 0.05 };
+        const mouse = new THREE.Vector2();
+        let hoveredPart = null;
+        let selectedPart = null;
+        let isDragging = false;
+        let mouseDownPos = new THREE.Vector2();
+        let mouseUpPos = new THREE.Vector2();
+        const dragThreshold = 3; // 像素，小于此值视为点击
+
+        // 原始材质存储
+        const originalMaterials = new Map();
+
+        function getPartTypeFromMesh(mesh) {
+            if (mesh.userData && mesh.userData.partType) return mesh.userData.partType;
+            // 向上查找
+            let current = mesh;
+            while (current) {
+                if (current.userData && current.userData.partType) return current.userData.partType;
+                current = current.parent;
+            }
+            return null;
+        }
+
+        function getTopInteractiveMesh(mesh) {
+            let current = mesh;
+            let lastInteractive = mesh;
+            while (current) {
+                if (current.userData && current.userData.isInteractive) {
+                    lastInteractive = current;
+                }
+                if (current === bogieGroup || current === scene) break;
+                current = current.parent;
+            }
+            return lastInteractive;
+        }
+
+        function highlightPart(mesh) {
+            if (!mesh) return;
+            const topMesh = getTopInteractiveMesh(mesh);
+            if (!topMesh) return;
+
+            const partType = topMesh.userData.partType;
+            if (!partType) return;
+
+            // 恢复之前高亮的
+            if (hoveredPart && hoveredPart !== topMesh) {
+                unhighlightPart(hoveredPart);
+            }
+
+            if (hoveredPart === topMesh) return;
+
+            hoveredPart = topMesh;
+
+            // 高亮该部件类型的所有网格
+            const allOfType = partGroups[partType] || [];
+            allOfType.forEach(m => {
+                if (!originalMaterials.has(m)) {
+                    originalMaterials.set(m, m.material.clone());
+                }
+                if (m.material.emissive) {
+                    m.material.emissive.set('#ffffff');
+                    m.material.emissiveIntensity = 0.55;
+                }
+                if (m.material.color) {
+                    const origColor = originalMaterials.get(m).color.clone();
+                    m.material.color.copy(origColor).multiplyScalar(1.25);
+                }
+            });
+
+            document.body.classList.add('pointer-cursor');
+        }
+
+        function unhighlightPart(mesh) {
+            if (!mesh) return;
+            const topMesh = getTopInteractiveMesh(mesh);
+            if (!topMesh) return;
+
+            const partType = topMesh.userData.partType;
+            if (!partType) return;
+
+            const allOfType = partGroups[partType] || [];
+            allOfType.forEach(m => {
+                if (originalMaterials.has(m)) {
+                    const orig = originalMaterials.get(m);
+                    if (m.material.emissive) {
+                        m.material.emissive.copy(orig.emissive);
+                        m.material.emissiveIntensity = orig.emissiveIntensity;
+                    }
+                    if (m.material.color) {
+                        m.material.color.copy(orig.color);
+                    }
+                    originalMaterials.delete(m);
+                }
+            });
+
+            if (hoveredPart === topMesh) {
+                hoveredPart = null;
+                document.body.classList.remove('pointer-cursor');
+            }
+        }
+
+        function selectPart(mesh) {
+            if (!mesh) return;
+            const topMesh = getTopInteractiveMesh(mesh);
+            if (!topMesh) return;
+
+            // 恢复之前选中的
+            if (selectedPart && selectedPart !== topMesh) {
+                deselectPart();
+            }
+
+            const partType = topMesh.userData.partType;
+            if (!partType) return;
+
+            // 如果点击同一个部件，取消选择
+            if (selectedPart === topMesh) {
+                deselectPart();
+                return;
+            }
+
+            selectedPart = topMesh;
+
+            // 高亮选中部件（更强的发光）
+            const allOfType = partGroups[partType] || [];
+            allOfType.forEach(m => {
+                if (!originalMaterials.has(m)) {
+                    originalMaterials.set(m, m.material.clone());
+                }
+                if (m.material.emissive) {
+                    m.material.emissive.set('#ffd740');
+                    m.material.emissiveIntensity = 0.9;
+                }
+                if (m.material.color) {
+                    const origColor = originalMaterials.get(m).color.clone();
+                    m.material.color.copy(origColor).multiplyScalar(1.4);
+                }
+            });
+
+            // 显示信息面板
+            showInfoPanel(partType);
+
+            // 高亮图例
+            legendItems.forEach(item => {
+                item.classList.remove('highlighted');
+                if (item.dataset.part === partType) {
+                    item.classList.add('highlighted');
+                }
+            });
+        }
+
+        function deselectPart() {
+            if (!selectedPart) return;
+            const partType = selectedPart.userData.partType;
+            if (partType && partGroups[partType]) {
+                const allOfType = partGroups[partType] || [];
+                allOfType.forEach(m => {
+                    if (originalMaterials.has(m)) {
+                        const orig = originalMaterials.get(m);
+                        if (m.material.emissive) {
+                            m.material.emissive.copy(orig.emissive);
+                            m.material.emissiveIntensity = orig.emissiveIntensity;
+                        }
+                        if (m.material.color) {
+                            m.material.color.copy(orig.color);
+                        }
+                        originalMaterials.delete(m);
+                    }
+                });
+            }
+            selectedPart = null;
+            hideInfoPanel();
+            legendItems.forEach(item => item.classList.remove('highlighted'));
+        }
+
+        function showInfoPanel(partType) {
+            const info = partInfoData[partType];
+            if (!info) return;
+            infoTitle.textContent = info.name;
+            infoDesc.innerHTML = info.desc;
+            infoIcon.style.background = info.color;
+            infoIcon.style.color = info.color;
+            infoIcon.style.boxShadow = `0 0 12px ${info.color}`;
+            infoPanel.classList.remove('hidden');
+        }
+
+        function hideInfoPanel() {
+            infoPanel.classList.add('hidden');
+            selectedPart = null;
+            legendItems.forEach(item => item.classList.remove('highlighted'));
+        }
+
+        // 射线检测
+        function getIntersections(event) {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            return raycaster.intersectObjects(interactiveParts, true);
+        }
+
+        // 鼠标事件
+        window.addEventListener('pointerdown', (event) => {
+            mouseDownPos.set(event.clientX, event.clientY);
+            isDragging = false;
+        });
+
+        window.addEventListener('pointermove', (event) => {
+            if (mouseDownPos.distanceTo(new THREE.Vector2(event.clientX, event.clientY)) > dragThreshold) {
+                isDragging = true;
+                document.body.classList.add('grabbing');
+            }
+
+            // 悬停检测
+            const intersects = getIntersections(event);
+            if (intersects.length > 0 && !isDragging) {
+                const obj = intersects[0].object;
+                const topMesh = getTopInteractiveMesh(obj);
+                if (topMesh && topMesh.userData.partType) {
+                    highlightPart(topMesh);
+                    // 更新3D提示
+                    const partType = topMesh.userData.partType;
+                    const info = partInfoData[partType];
+                    if (info) {
+                        tooltip3D.textContent = info.name;
+                        tooltip3D.style.left = (event.clientX + 18) + 'px';
+                        tooltip3D.style.top = (event.clientY - 30) + 'px';
+                        tooltip3D.classList.add('visible');
+                    }
+                } else {
+                    if (hoveredPart) unhighlightPart(hoveredPart);
+                    tooltip3D.classList.remove('visible');
+                }
+            } else if (isDragging) {
+                if (hoveredPart) unhighlightPart(hoveredPart);
+                tooltip3D.classList.remove('visible');
+            } else {
+                if (hoveredPart) unhighlightPart(hoveredPart);
+                tooltip3D.classList.remove('visible');
+            }
+        });
+
+        window.addEventListener('pointerup', (event) => {
+            document.body.classList.remove('grabbing');
+            mouseUpPos.set(event.clientX, event.clientY);
+            const dragDistance = mouseDownPos.distanceTo(mouseUpPos);
+
+            if (!isDragging && dragDistance < dragThreshold) {
+                // 这是点击
+                const intersects = getIntersections(event);
+                if (intersects.length > 0) {
+                    const obj = intersects[0].object;
+                    const topMesh = getTopInteractiveMesh(obj);
+                    if (topMesh && topMesh.userData.partType) {
+                        selectPart(topMesh);
+                    } else {
+                        deselectPart();
+                    }
+                } else {
+                    deselectPart();
+                }
+            }
+            isDragging = false;
+        });
+
+        // 触摸事件（移动端双击取消选择）
+        window.addEventListener('dblclick', (event) => {
+            deselectPart();
+        });
+
+        // 关闭信息面板
+        closeInfoBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            deselectPart();
+        });
+
+        // 图例点击
+        legendItems.forEach(item => {
+            item.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const partType = item.dataset.part;
+                if (!partType) return;
+
+                // 如果已经选中该部件，取消选择
+                if (selectedPart && selectedPart.userData.partType === partType) {
+                    deselectPart();
+                    return;
+                }
+
+                // 查找该类型的第一个网格并选中
+                const meshes = partGroups[partType] || [];
+                if (meshes.length > 0) {
+                    // 先取消之前的选择
+                    if (selectedPart) deselectPart();
+                    selectPart(meshes[0]);
+
+                    // 飞向该部件
+                    flyToPart(meshes[0]);
+                }
+            });
+        });
+
+        // 图例面板折叠
+        let legendCollapsed = false;
+        legendToggle.addEventListener('click', () => {
+            legendCollapsed = !legendCollapsed;
+            if (legendCollapsed) {
+                legendPanel.classList.add('collapsed');
+                legendToggle.textContent = '▶';
+            } else {
+                legendPanel.classList.remove('collapsed');
+                legendToggle.textContent = '◀';
+            }
+        });
+
+        // ==================== 相机飞行动画 ====================
+        function flyToPart(mesh) {
+            const worldPos = new THREE.Vector3();
+            mesh.getWorldPosition(worldPos);
+            const targetPos = worldPos.clone().add(new THREE.Vector3(1.2, 0.8, 1.5));
+            const targetLookAt = worldPos.clone();
+
+            const startPos = camera.position.clone();
+            const startTarget = controls.target.clone();
+            const startTime = performance.now();
+            const duration = 800;
+
+            function animateFly(time) {
+                const elapsed = time - startTime;
+                const t = Math.min(elapsed / duration, 1.0);
+                // 缓出函数
+                const ease = 1 - Math.pow(1 - t, 3);
+
+                camera.position.lerpVectors(startPos, targetPos, ease);
+                controls.target.lerpVectors(startTarget, targetLookAt, ease);
+                controls.update();
+
+                if (t < 1) {
+                    requestAnimationFrame(animateFly);
+                }
+            }
+            requestAnimationFrame(animateFly);
+        }
+
+        // ==================== 按钮事件 ====================
+        btnAutoRotate.addEventListener('click', () => {
+            controls.autoRotate = !controls.autoRotate;
+            btnAutoRotate.classList.toggle('active', controls.autoRotate);
+        });
+
+        btnReset.addEventListener('click', () => {
+            const targetPos = new THREE.Vector3(4.5, 3.2, 5.5);
+            const targetLookAt = new THREE.Vector3(0, 0.15, 0);
+            const startPos = camera.position.clone();
+            const startTarget = controls.target.clone();
+            const startTime = performance.now();
+            const duration = 700;
+
+            function animateReset(time) {
+                const elapsed = time - startTime;
+                const t = Math.min(elapsed / duration, 1.0);
+                const ease = 1 - Math.pow(1 - t, 3);
+                camera.position.lerpVectors(startPos, targetPos, ease);
+                controls.target.lerpVectors(startTarget, targetLookAt, ease);
+                controls.update();
+                if (t < 1) {
+                    requestAnimationFrame(animateReset);
+                }
+            }
+            requestAnimationFrame(animateReset);
+            deselectPart();
+        });
+
+        btnTopView.addEventListener('click', () => {
+            const targetPos = new THREE.Vector3(0, 6.5, 0.3);
+            const targetLookAt = new THREE.Vector3(0, 0.15, 0);
+            flyCameraTo(targetPos, targetLookAt);
+        });
+
+        btnFrontView.addEventListener('click', () => {
+            const targetPos = new THREE.Vector3(0, 0.3, 6.5);
+            const targetLookAt = new THREE.Vector3(0, 0.15, 0);
+            flyCameraTo(targetPos, targetLookAt);
+        });
+
+        btnSideView.addEventListener('click', () => {
+            const targetPos = new THREE.Vector3(6.5, 0.5, 0);
+            const targetLookAt = new THREE.Vector3(0, 0.15, 0);
+            flyCameraTo(targetPos, targetLookAt);
+        });
+
+        function flyCameraTo(targetPos, targetLookAt) {
+            const startPos = camera.position.clone();
+            const startTarget = controls.target.clone();
+            const startTime = performance.now();
+            const duration = 700;
+
+            function anim(time) {
+                const elapsed = time - startTime;
+                const t = Math.min(elapsed / duration, 1.0);
+                const ease = 1 - Math.pow(1 - t, 3);
+                camera.position.lerpVectors(startPos, targetPos, ease);
+                controls.target.lerpVectors(startTarget, targetLookAt, ease);
+                controls.update();
+                if (t < 1) {
+                    requestAnimationFrame(anim);
+                }
+            }
+            requestAnimationFrame(anim);
+        }
+
+        // 分解视图
+        let exploded = false;
+        const explodeOffsets = {
+            'frame': 0,
+            'wheelset': 0.7,
+            'axlebox': 1.0,
+            'primary-spring': 0.5,
+            'air-spring': 1.4,
+            'traction-motor': 0.9,
+            'brake-disc': 0.6,
+            'damper': 1.1,
+            'traction-link': 0.8,
+        };
+
+        btnExplode.addEventListener('click', () => {
+            exploded = !exploded;
+            btnExplode.classList.toggle('active', exploded);
+
+            const targetOffsets = {};
+            for (const [partType, offset] of Object.entries(explodeOffsets)) {
+                targetOffsets[partType] = exploded ? offset : 0;
+            }
+
+            // 动画过渡
+            const startTime = performance.now();
+            const duration = 600;
+            const startOffsets = {};
+
+            // 记录起始偏移
+            for (const partType of Object.keys(explodeOffsets)) {
+                const meshes = partGroups[partType] || [];
+                if (meshes.length > 0) {
+                    startOffsets[partType] = meshes[0].userData.explodeOffset || 0;
+                }
+            }
+
+            function animExplode(time) {
+                const elapsed = time - startTime;
+                const t = Math.min(elapsed / duration, 1.0);
+                const ease = 1 - Math.pow(1 - t, 3);
+
+                for (const [partType, targetOffset] of Object.entries(targetOffsets)) {
+                    const startOffset = startOffsets[partType] || 0;
+                    const currentOffset = startOffset + (targetOffset - startOffset) * ease;
+                    const meshes = partGroups[partType] || [];
+                    meshes.forEach(m => {
+                        const origY = m.userData.originalY;
+                        m.position.y = origY + currentOffset;
+                        m.userData.explodeOffset = currentOffset;
+                    });
+                }
+                if (t < 1) {
+                    requestAnimationFrame(animExplode);
+                }
+            }
+            requestAnimationFrame(animExplode);
+        });
+
+        // ==================== 键盘快捷键 ====================
+        window.addEventListener('keydown', (event) => {
+            switch (event.key.toLowerCase()) {
+                case 'r':
+                    btnReset.click();
+                    break;
+                case 't':
+                    btnTopView.click();
+                    break;
+                case 'f':
+                    btnFrontView.click();
+                    break;
+                case 's':
+                    btnSideView.click();
+                    break;
+                case 'a':
+                    btnAutoRotate.click();
+                    break;
+                case 'e':
+                    btnExplode.click();
+                    break;
+                case 'escape':
+                    deselectPart();
+                    break;
+            }
+        });
+
+        // ==================== 响应式处理 ====================
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // ==================== 渲染循环 ====================
+        const clock = new THREE.Clock();
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const delta = clock.getDelta();
+            controls.update();
+
+            // 粒子动画
+            particles.rotation.y += delta * 0.08;
+            particles.rotation.x += delta * 0.03;
+
+            // 更新3D提示位置（跟随鼠标，但仅在可见时更新）
+            if (!tooltip3D.classList.contains('visible')) {
+                // 提示已隐藏
+            }
+
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // ==================== 初始信息展示 ====================
+        // 页面加载后短暂显示欢迎信息
+        setTimeout(() => {
+            const welcomeInfo = {
+                name: '👆 点击部件探索转向架',
+                color: '#58a6ff',
+                desc: '您可以通过<strong>鼠标拖拽旋转</strong>视角、<strong>滚轮缩放</strong>、<strong>右键平移</strong>来观察CRH380A型动车组转向架的3D结构。点击任意部件查看详细介绍，或使用右侧图例快速定位。试试顶部的<strong>分解视图</strong>按钮吧！'
+            };
+            infoTitle.textContent = welcomeInfo.name;
+            infoDesc.innerHTML = welcomeInfo.desc;
+            infoIcon.style.background = welcomeInfo.color;
+            infoIcon.style.color = welcomeInfo.color;
+            infoIcon.style.boxShadow = `0 0 12px ${welcomeInfo.color}`;
+            infoPanel.classList.remove('hidden');
+        }, 600);
+
+        // 8秒后自动隐藏欢迎信息
+        setTimeout(() => {
+            if (!selectedPart) {
+                hideInfoPanel();
+            }
+        }, 9000);
+
+        console.log('🚄 CRH380A 动车组转向架 3D交互展示已就绪');
+        console.log('  鼠标拖拽旋转 | 滚轮缩放 | 右键平移 | 点击部件查看详情');
+        console.log('  快捷键: R-重置 T-俯视 F-正视 S-侧视 A-自动旋转 E-分解 Esc-取消选择');
+        console.log('  图例面板可点击定位部件 | 右上角按钮切换视图');
+    </script>
+</body>
+</html>
